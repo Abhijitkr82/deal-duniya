@@ -1,9 +1,8 @@
-
 "use client";
 
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
 
 type Product = {
   _id: string;
@@ -17,7 +16,7 @@ type Product = {
   description: string;
 };
 
-export default function SearchPage() {
+function SearchContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get("q")?.trim() || "";
 
@@ -26,13 +25,22 @@ export default function SearchPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const controller = new AbortController();
+
     async function fetchProducts() {
       try {
         setLoading(true);
         setError("");
 
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+        if (!apiUrl) {
+          throw new Error("API URL is not configured.");
+        }
+
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/products`
+          `${apiUrl}/api/products`,
+          { signal: controller.signal }
         );
 
         if (!response.ok) {
@@ -41,16 +49,25 @@ export default function SearchPage() {
 
         const data = await response.json();
         setProducts(data.products || []);
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+
+        console.error("Search products fetch error:", err);
         setError(
-          "Products load nahi ho paaye. Please check whether the backend server is running."
+          "Products load nahi ho paaye. Please try again later."
         );
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
 
     fetchProducts();
+
+    return () => controller.abort();
   }, []);
 
   const filteredProducts = products.filter((product) => {
@@ -79,9 +96,7 @@ export default function SearchPage() {
           </p>
 
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
-            {query
-              ? `Search results for "${query}"`
-              : "Search Products"}
+            {query ? `Search results for "${query}"` : "Search Products"}
           </h1>
 
           {query && !loading && !error && (
@@ -119,59 +134,62 @@ export default function SearchPage() {
           </div>
         )}
 
-        {query && !loading && !error && filteredProducts.length > 0 && (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredProducts.map((product) => (
-              <article
-                key={product._id}
-                className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl"
-              >
-                <div className="relative flex h-52 items-center justify-center bg-slate-100 text-7xl transition group-hover:bg-orange-50">
-                  <span className="absolute left-4 top-4 rounded-full bg-orange-500 px-3 py-1 text-xs font-bold text-white">
-                    {product.badge}
-                  </span>
-
-                  {product.image ? (
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="h-full w-full object-contain p-4"
-                    />
-                  ) : (
-                    <span>🛍️</span>
-                  )}
-                </div>
-
-                <div className="p-5">
-                  <p className="text-xs font-semibold text-orange-500">
-                    {product.category}
-                  </p>
-
-                  <h2 className="mt-2 font-bold text-slate-900">
-                    {product.name}
-                  </h2>
-
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className="text-lg font-black text-slate-900">
-                      {product.price}
+        {query &&
+          !loading &&
+          !error &&
+          filteredProducts.length > 0 && (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {filteredProducts.map((product) => (
+                <article
+                  key={product._id}
+                  className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+                >
+                  <div className="relative flex h-52 items-center justify-center bg-slate-100 text-7xl transition group-hover:bg-orange-50">
+                    <span className="absolute left-4 top-4 rounded-full bg-orange-500 px-3 py-1 text-xs font-bold text-white">
+                      {product.badge}
                     </span>
 
-                    <span className="text-sm text-slate-500">
-                      ⭐ {product.rating}
-                    </span>
+                    {product.image ? (
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="h-full w-full object-contain p-4"
+                      />
+                    ) : (
+                      <span>🛍️</span>
+                    )}
                   </div>
 
-                  <Link
-                    href={`/products/${product.slug}`}
-                    className="mt-4 block w-full rounded-xl bg-slate-950 py-3 text-center text-sm font-bold text-white transition hover:bg-orange-500"
-                  >
-                    Check Deal →
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+                  <div className="p-5">
+                    <p className="text-xs font-semibold text-orange-500">
+                      {product.category}
+                    </p>
+
+                    <h2 className="mt-2 font-bold text-slate-900">
+                      {product.name}
+                    </h2>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="text-lg font-black text-slate-900">
+                        {product.price}
+                      </span>
+
+                      <span className="text-sm text-slate-500">
+                        ⭐ {product.rating}
+                      </span>
+                    </div>
+
+                    <Link
+                      href={`/products/${product.slug}`}
+                      className="mt-4 block w-full rounded-xl bg-slate-950 py-3 text-center text-sm font-bold text-white transition hover:bg-orange-500"
+                    >
+                      Check Deal →
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
 
         {query &&
           !loading &&
@@ -198,5 +216,21 @@ export default function SearchPage() {
           )}
       </div>
     </main>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-slate-50 px-4 py-10">
+          <div className="mx-auto max-w-7xl text-slate-600">
+            Loading search...
+          </div>
+        </main>
+      }
+    >
+      <SearchContent />
+    </Suspense>
   );
 }
