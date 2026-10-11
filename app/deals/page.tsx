@@ -24,7 +24,7 @@ export default function DealsPage() {
     async function fetchProducts() {
       try {
         const response = await fetch(
-          "http://localhost:5000/api/products"
+          `${process.env.NEXT_PUBLIC_API_URL}/api/products`
         );
 
         if (!response.ok) {
